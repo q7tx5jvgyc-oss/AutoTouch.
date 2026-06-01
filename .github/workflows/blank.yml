@@ -62,8 +62,8 @@ jobs:
         - (void)handlePan:(UIPanGestureRecognizer *)sender {
             CGPoint translation = [sender translationInView:self];
             sender.view.center = CGPointMake(sender.view.center.x + translation.x, sender.view.center.y + translation.y);
-            // تصحيح رمز تصفير الحركة ليتوافق مع المترجم الفوري المباشر
-            [sender setTranslation:CGPoint(0,0) inView:self];
+            // تعديل وتصحيح صياغة تصفير الحركة المتوافقة مع المترجم 100%
+            [sender setTranslation:CGPointMake(0, 0) inView:self];
         }
 
         - (void)createMenuView {
@@ -150,7 +150,7 @@ jobs:
       run: |
         mkdir -p AutoTouchOutput
 
-        # إضافة كود ربط مكتبة الـ CoreGraphics الهندسية لتخطي خطأ الـ arm64 الحاصل
+        # البناء النهائي الشامل مع تفعيل كافة مكاتب الجرافيكس والربط الصحيح
         xcrun -sdk iphoneos clang++ -dynamiclib \
           -arch arm64 -arch arm64e \
           -miphoneos-version-min=14.0 \
