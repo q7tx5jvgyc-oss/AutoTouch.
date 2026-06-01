@@ -29,7 +29,9 @@ jobs:
     - name: Upload Compiled Files
       uses: actions/upload-artifact@v4
       with:
-        name: AutoTouch-ModMenu-Package
+        name: Autotouh-ModMenu-Package
         path: |
           .theos/obj/debug/*.dylib
+          .theos/obj/*.dylib
+          packages/*.deb
           *.deb
