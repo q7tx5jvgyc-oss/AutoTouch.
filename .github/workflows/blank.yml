@@ -1,135 +1,35 @@
-#import "MustacheCoreWindow.h"
-#import <UIKit/UIKit.h>
-#import <QuartzCore/QuartzCore.h>
-#import <mach/mach_time.h>
+name: Build iOS Tweak via Theos
 
-// مكتبة IOHIDEvent للنقر الحقيقي
-extern "C" {
-    CFTypeRef IOHIDEventCreateDigitizerFingerEvent(CFAllocatorRef allocator, uint64_t timeStamp,
-                                                   uint32_t index, uint32_t identity,
-                                                   uint32_t eventMask, float x, float y, float z,
-                                                   float tipPressure, float twist,
-                                                   objc_bool isInRange, objc_bool isTouched,
-                                                   uint32_t options);
-    void ISendHIDEvent(CFTypeRef event);
-}
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
 
-@interface MustacheCoreWindow : UIWindow
-@property (nonatomic, strong) UIButton *floatingButton;       // زر القائمة العائمة
-@property (nonatomic, strong) UIView *menuView;               // القائمة العائمة
-@property (nonatomic, strong) UISlider *speedSlider;          // شريط التحكم بالسرعة
-@property (nonatomic, assign) BOOL isMacroRunning;            // حالة النقر التلقائي
-@property (nonatomic, strong) NSMutableArray *targetsCollection; // الأهداف
-@property (nonatomic, assign) float clickInterval;            // فترة النقر
-@property (nonatomic, strong) dispatch_source_t tapTimer;     // مؤقت النقر
-@end
+jobs:
+  build:
+    runs-on: macos-latest
 
-@implementation MustacheCoreWindow
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
 
-// ### إعداد النافذة ###
-- (instancetype)init {
-    self = [super initWithFrame:[UIScreen mainScreen].bounds];
-    if (self) {
-        self.windowLevel = UIWindowLevelStatusBar; // نافذة عائمة
-        self.backgroundColor = [UIColor clearColor];
-        self.clickInterval = 0.10;
-        self.targetsCollection = [NSMutableArray array];
-
-        [self setupFloatingButton];
-        [self setupMenu];
-    }
-    return self;
-}
-
-// ### إنشاء الزر العائم ###
-- (void)setupFloatingButton {
-    self.floatingButton = [UIButton buttonWithType:UIButtonTypeCustom];
-    self.floatingButton.frame = CGRectMake(40, 120, 85, 45);
-    self.floatingButton.backgroundColor = [[UIColor blackColor] colorWithAlphaComponent:0.9];
-    [self.floatingButton setTitle:@"Menu" forState:UIControlStateNormal];
-    [self.floatingButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
-    self.floatingButton.layer.cornerRadius = 12;
-
-    [self.floatingButton addTarget:self action:@selector(toggleMenu) forControlEvents:UIControlEventTouchUpInside];
-    [self addSubview:self.floatingButton];
-}
-
-// ### إنشاء القائمة ###
-- (void)setupMenu {
-    self.menuView = [[UIView alloc] initWithFrame:CGRectMake(50, 250, 250, 200)];
-    self.menuView.backgroundColor = [[UIColor blackColor] colorWithAlphaComponent:0.8];
-    self.menuView.layer.cornerRadius = 10;
-    self.menuView.hidden = YES; // مخفية افتراضيًا
-    [self addSubview:self.menuView];
-
-    UILabel *label = [[UILabel alloc] initWithFrame:CGRectMake(20, 10, 210, 30)];
-    label.text = @"Control Menu";
-    label.textAlignment = NSTextAlignmentCenter;
-    label.textColor = [UIColor whiteColor];
-    label.font = [UIFont boldSystemFontOfSize:18];
-    [self.menuView addSubview:label];
-
-    // شريط التحكم بالسرعة
-    self.speedSlider = [[UISlider alloc] initWithFrame:CGRectMake(20, 60, 200, 30)];
-    self.speedSlider.minimumValue = 0.05;
-    self.speedSlider.maximumValue = 0.5;
-    self.speedSlider.value = self.clickInterval;
-    [self.speedSlider addTarget:self action:@selector(updateClickSpeed) forControlEvents:UIControlEventValueChanged];
-    [self.menuView addSubview:self.speedSlider];
-
-    // زر إضافة الأهداف
-    UIButton *addTargetButton = [UIButton buttonWithType:UIButtonTypeCustom];
-    addTargetButton.frame = CGRectMake(40, 110, 170, 40);
-    [addTargetButton setTitle:@"Add Target" forState:UIControlStateNormal];
-    addTargetButton.backgroundColor = [UIColor greenColor];
-    addTargetButton.layer.cornerRadius = 8;
-    [addTargetButton addTarget:self action:@selector(addTarget) forControlEvents:UIControlEventTouchUpInside];
-    [self.menuView addSubview:addTargetButton];
-}
-
-- (void)toggleMenu {
-    self.menuView.hidden = !self.menuView.hidden;
-}
-
-- (void)updateClickSpeed {
-    self.clickInterval = self.speedSlider.value;
-}
-
-// ### إضافة الأهداف ###
-- (void)addTarget {
-    UIView *target = [[UIView alloc] initWithFrame:CGRectMake(150, 150, 50, 50)];
-    target.backgroundColor = [[UIColor redColor] colorWithAlphaComponent:0.8];
-    target.layer.cornerRadius = 25;
-    [self addSubview:target];
-    [self.targetsCollection addObject:target];
-}
-
-// ### بدء النقر ###
-- (void)startTap {
-    if (self.tapTimer) return;
-    self.tapTimer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
-    dispatch_source_set_timer(self.tapTimer, DISPATCH_TIME_NOW, self.clickInterval * NSEC_PER_SEC, 0.1 * NSEC_PER_SEC);
-
-    dispatch_source_set_event_handler(self.tapTimer, ^{
-        for (UIView *target in self.targetsCollection) {
-            CGPoint center = target.center;
-            CFTypeRef event = IOHIDEventCreateDigitizerFingerEvent(
-                kCFAllocatorDefault, mach_absolute_time(), 0, 1, 2,
-                center.x, center.y, 0, 1.0, 0.0, true, true, 0
-            );
-            ISendHIDEvent(event);
-            CFRelease(event);
-        }
-    });
-
-    dispatch_resume(self.tapTimer);
-}
-
-- (void)stopTap {
-    if (self.tapTimer) {
-        dispatch_source_cancel(self.tapTimer);
-        self.tapTimer = nil;
-    }
-}
-
-@end
+    - name: Set up Theos Environment
+      run: |
+        git clone --recursive https://github.com $HOME/theos
+        echo "THEOS=$HOME/theos" >> $GITHUB_ENV
+        
+    - name: Set up iOS SDK
+      run: |
+        git clone https://github.com $HOME/theos/sdks
+        
+    - name: Compile Project
+      run: |
+        make package FINALPACKAGE=1
+        
+    - name: Upload Compiled Files
+      uses: actions/upload-artifact@v4
+      with:
+        name: AutoTouch-ModMenu-Package
+        path: |
+          .theos/obj/debug/*.dylib
+          *.deb
