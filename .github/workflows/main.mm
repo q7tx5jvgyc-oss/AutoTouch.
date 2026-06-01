@@ -1,176 +1,172 @@
 #import <UIKit/UIKit.h>
+#import <CoreGraphics/CoreGraphics.h>
+#import <QuartzCore/QuartzCore.h>
+#import <mach/mach_time.h>
 
-@interface AutoTouchWindow : UIWindow
-@property (nonatomic, strong) UIButton *floatingButton;
-@property (nonatomic, strong) UIView *menuView;
-@property (nonatomic, strong) UISlider *speedSlider;
-@property (nonatomic, strong) UILabel *speedLabel;
-@property (nonatomic, strong) UIButton *toggleButton;
-@property (nonatomic, strong) NSMutableArray *targetCircles;
-@property (nonatomic, assign) BOOL isRunning;
-@property (nonatomic, assign) float clickSpeed;
+extern "C" {
+    CFTypeRef IOHIDEventCreateDigitizerFingerEvent(CFAllocatorRef allocator, uint64_t timeStamp, uint32_t index, uint32_t identity, uint32_t eventMask, float x, float y, float z, float tipPressure, float twist, objc_bool isInRange, objc_bool isTouched, uint32_t options);
+    void ISendHIDEvent(CFTypeRef event);
+}
+
+@interface MustacheTargetNode : UIView
+@property (nonatomic, assign) CGPoint screenAbsolutePoint;
+@property (nonatomic, strong) UILabel *numberLabel;
 @end
 
-@implementation AutoTouchWindow
-
-- (instancetype)init {
-    self = [super initWithFrame:[UIScreen mainScreen].bounds];
+@implementation MustacheTargetNode
+- (instancetype)initWithFrame:(CGRect)frame index:(NSInteger)index {
+    self = [super initWithFrame:frame];
     if (self) {
-        // حماية ظهور النافذة فوق التطبيقات والألعاب طوال الوقت
-        self.windowLevel = UIWindowLevelAlert + 10.0;
-        self.backgroundColor = [UIColor clearColor];
-        [self setHidden:NO];
-        
-        self.isRunning = NO;
-        self.clickSpeed = 1.0;
-        self.targetCircles = [[NSMutableArray alloc] init];
-        
-        [self createFloatingButton];
-        [self createMenuView];
+        self.backgroundColor = [[UIColor blackColor] colorWithAlphaComponent:0.85];
+        self.layer.cornerRadius = frame.size.width / 2;
+        self.layer.borderColor = [UIColor whiteColor].CGColor;
+        self.layer.borderWidth = 2.5;
+
+        self.numberLabel = [[UILabel alloc] initWithFrame:self.bounds];
+        self.numberLabel.text = [NSString stringWithFormat:@"%ld", (long)index];
+        self.numberLabel.textColor = [UIColor whiteColor];
+        self.numberLabel.textAlignment = NSTextAlignmentCenter;
+        self.numberLabel.font = [UIFont boldSystemFontOfSize:16];
+        [self addSubview:self.numberLabel];
+
+        UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handleNodePan:)];
+        [self addGestureRecognizer:pan];
+
+        [self updateAbsoluteScreenPosition];
     }
     return self;
 }
 
-// تصميم الزر العائم وإضافة ميزة السحب والتحريك بالإصبع
-- (void)createFloatingButton {
-    self.floatingButton = [UIButton buttonWithType:UIButtonTypeCustom];
-    self.floatingButton.frame = CGRectMake(50, 150, 60, 60);
-    self.floatingButton.backgroundColor = [UIColor systemBlueColor];
-    self.floatingButton.layer.cornerRadius = 30;
-    self.floatingButton.layer.shadowOpacity = 0.5;
-    self.floatingButton.layer.shadowRadius = 5;
-    self.floatingButton.layer.shadowOffset = CGSizeMake(0, 3);
-    
-    if (@available(iOS 13.0, *)) {
-        [self.floatingButton setImage:[UIImage systemImageNamed:@"hand.tap.fill"] forState:UIControlStateNormal];
-        self.floatingButton.tintColor = [UIColor whiteColor];
+- (void)handleNodePan:(UIPanGestureRecognizer *)sender {
+    CGPoint translation = [sender translationInView:self.superview];
+    self.center = CGPointMake(self.center.x + translation.x, self.center.y + translation.y);
+    [sender setTranslation:CGPointZero inView:self.superview];
+    [self updateAbsoluteScreenPosition];
+}
+
+- (void)updateAbsoluteScreenPosition {
+    self.screenAbsolutePoint = [self convertPoint:CGPointMake(self.bounds.size.width / 2, self.bounds.size.height / 2) toView:nil];
+}
+@end
+
+@interface MustacheCoreWindow : UIWindow
+@property (nonatomic, strong) UIButton *floatingButton;
+@property (nonatomic, strong) UIView *menuView;
+@property (nonatomic, strong) UISlider *speedSlider;
+@property (nonatomic, strong) UILabel *speedLabel;
+@property (nonatomic, strong) NSMutableArray<MustacheTargetNode *> *targetsCollection;
+@property (nonatomic, assign) BOOL isMacroRunning;
+@property (nonatomic, assign) float clickInterval;
+@property (nonatomic, strong) dispatch_source_t highSpeedTimer;
+@end
+
+@implementation MustacheCoreWindow
+
+- (instancetype)init {
+    self = [super initWithFrame:[UIScreen mainScreen].bounds];
+    if (self) {
+        self.windowLevel = UIWindowLevelStatusBar; // مستوى النافذة لضمان عدم التداخل مع النوافذ الأخرى
+
+        self.targetsCollection = [NSMutableArray new];
+        self.clickInterval = 0.10;
+        self.isMacroRunning = NO;
+
+        [self createFloatingTrigger];
+        [self createMustacheMenu];
     }
-    
-    UIPanGestureRecognizer *panGesture = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handlePan:)];
-    [self.floatingButton addGestureRecognizer:panGesture];
-    [self.floatingButton addTarget:self action:@selector(toggleMenu) forControlEvents:UIControlEventTouchUpInside];
-    
+    return self;
+}
+
+- (void)createFloatingTrigger {
+    self.floatingButton = [UIButton buttonWithType:UIButtonTypeCustom];
+    self.floatingButton.frame = CGRectMake(40, 220, 75, 45);
+    self.floatingButton.backgroundColor = [UIColor blackColor];
+    [self.floatingButton setTitle:@"Mustache" forState:UIControlStateNormal];
+    [self.floatingButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+    self.floatingButton.titleLabel.font = [UIFont boldSystemFontOfSize:14];
+    self.floatingButton.layer.cornerRadius = 10;
+
+    UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handleButtonPan:)];
+    [self.floatingButton addGestureRecognizer:pan];
+    [self.floatingButton addTarget:self action:@selector(toggleMenuDisplay) forControlEvents:UIControlEventTouchUpInside];
     [self addSubview:self.floatingButton];
 }
 
-- (void)handlePan:(UIPanGestureRecognizer *)sender {
+- (void)handleButtonPan:(UIPanGestureRecognizer *)sender {
     CGPoint translation = [sender translationInView:self];
     sender.view.center = CGPointMake(sender.view.center.x + translation.x, sender.view.center.y + translation.y);
     [sender setTranslation:CGPointZero inView:self];
 }
 
-// تصميم لوحة التحكم (السرعة، أزرار التشغيل، إضافة الأهداف)
-- (void)createMenuView {
-    self.menuView = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 280, 320)];
-    self.menuView.center = self.center;
-    self.menuView.backgroundColor = [[UIColor systemBackgroundColor] colorWithAlphaComponent:0.95];
-    self.menuView.layer.cornerRadius = 20;
-    self.menuView.layer.shadowOpacity = 0.4;
-    self.menuView.layer.shadowRadius = 15;
-    self.menuView.hidden = YES;
-
-    UILabel *titleLabel = [[UILabel alloc] initWithFrame:CGRectMake(10, 15, 260, 25)];
-    titleLabel.text = @"لوحة تحكم الأوتو";
-    titleLabel.textAlignment = NSTextAlignmentCenter;
-    titleLabel.font = [UIFont boldSystemFontOfSize:18];
-    [self.menuView addSubview:titleLabel];
-
-    self.toggleButton = [UIButton buttonWithType:UIButtonTypeSystem];
-    self.toggleButton.frame = CGRectMake(20, 60, 240, 50);
-    self.toggleButton.backgroundColor = [UIColor systemGreenColor];
-    [self.toggleButton setTitle:@"▶️ تشغيل الأوتو" forState:UIControlStateNormal];
-    [self.toggleButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
-    self.toggleButton.titleLabel.font = [UIFont boldSystemFontOfSize:16];
-    self.toggleButton.layer.cornerRadius = 12;
-    [self.toggleButton addTarget:self action:@selector(toggleAutoClick) forControlEvents:UIControlEventTouchUpInside];
-    [self.menuView addSubview:self.toggleButton];
-
-    self.speedLabel = [[UILabel alloc] initWithFrame:CGRectMake(20, 130, 240, 20)];
-    self.speedLabel.text = @"سرعة النقر: 1.0 ثانية";
-    self.speedLabel.font = [UIFont systemFontOfSize:14 weight:UIFontWeightBold];
-    [self.menuView addSubview:self.speedLabel];
-
-    self.speedSlider = [[UISlider alloc] initWithFrame:CGRectMake(20, 160, 240, 30)];
-    self.speedSlider.minimumValue = 0.1;
-    self.speedSlider.maximumValue = 5.0;
-    self.speedSlider.value = 1.0;
-    [self.speedSlider addTarget:self action:@selector(sliderChanged:) forControlEvents:UIControlEventValueChanged];
-    [self.menuView addSubview:self.speedSlider];
-
-    UIButton *addTargetBtn = [UIButton buttonWithType:UIButtonTypeSystem];
-    addTargetBtn.frame = CGRectMake(20, 210, 240, 45);
-    addTargetBtn.backgroundColor = [[UIColor systemBlueColor] colorWithAlphaComponent:0.1];
-    [addTargetBtn setTitle:@"➕ إضافة هدف (نقرة)" forState:UIControlStateNormal];
-    [addTargetBtn setTitleColor:[UIColor systemBlueColor] forState:UIControlStateNormal];
-    addTargetBtn.layer.cornerRadius = 10;
-    [addTargetBtn addTarget:self action:@selector(addTargetClick) forControlEvents:UIControlEventTouchUpInside];
-    [self.menuView addSubview:addTargetBtn];
-
-    UIButton *clearBtn = [UIButton buttonWithType:UIButtonTypeSystem];
-    clearBtn.frame = CGRectMake(20, 270, 240, 30);
-    [clearBtn setTitle:@"مسح الأهداف" forState:UIControlStateNormal];
-    [clearBtn setTitleColor:[UIColor systemRedColor] forState:UIControlStateNormal];
-    [clearBtn addTarget:self action:@selector(clearTargetsClick) forControlEvents:UIControlEventTouchUpInside];
-    [self.menuView addSubview:clearBtn];
-
-    [self addSubview:self.menuView];
-}
-
-- (void)toggleMenu {
-    [UIView animateWithDuration:0.25 animations:^{
+- (void)toggleMenuDisplay {
+    [UIView animateWithDuration:0.3 animations:^{
         self.menuView.hidden = !self.menuView.hidden;
     }];
 }
 
-- (void)sliderChanged:(UISlider *)sender {
-    self.clickSpeed = sender.value;
-    self.speedLabel.text = [NSString stringWithFormat:@"سرعة النقر: %.1f ثانية", sender.value];
+- (void)createMustacheMenu {
+    self.menuView = [[UIView alloc] initWithFrame:CGRectMake(40, 300, 250, 200)];
+    self.menuView.backgroundColor = [[UIColor blackColor] colorWithAlphaComponent:0.85];
+    self.menuView.layer.cornerRadius = 10;
+    self.menuView.hidden = YES;
+    [self addSubview:self.menuView];
+
+    UILabel *titleLabel = [[UILabel alloc] initWithFrame:CGRectMake(0, 10, 250, 30)];
+    titleLabel.text = @"Mustache Auto Tap";
+    titleLabel.textColor = [UIColor whiteColor];
+    titleLabel.textAlignment = NSTextAlignmentCenter;
+    titleLabel.font = [UIFont boldSystemFontOfSize:16];
+    [self.menuView addSubview:titleLabel];
+
+    self.speedSlider = [[UISlider alloc] initWithFrame:CGRectMake(20, 50, 210, 20)];
+    self.speedSlider.minimumValue = 0.05;
+    self.speedSlider.maximumValue = 0.5;
+    self.speedSlider.value = self.clickInterval;
+    [self.speedSlider addTarget:self action:@selector(updateSpeed) forControlEvents:UIControlEventValueChanged];
+    [self.menuView addSubview:self.speedSlider];
+
+    UIButton *addTargetButton = [UIButton buttonWithType:UIButtonTypeCustom];
+    addTargetButton.frame = CGRectMake(50, 100, 150, 40);
+    addTargetButton.backgroundColor = [UIColor greenColor];
+    [addTargetButton setTitle:@"إضافة هدف" forState:UIControlStateNormal];
+    [addTargetButton setTitleColor:[UIColor blackColor] forState:UIControlStateNormal];
+    [addTargetButton addTarget:self action:@selector(addTargetNode) forControlEvents:UIControlEventTouchUpInside];
+    addTargetButton.layer.cornerRadius = 10;
+    [self.menuView addSubview:addTargetButton];
 }
 
-- (void)toggleAutoClick {
-    self.isRunning = !self.isRunning;
-    if (self.isRunning) {
-        self.toggleButton.backgroundColor = [UIColor systemRedColor];
-        [self.toggleButton setTitle:@"🛑 إيقاف الأوتو" forState:UIControlStateNormal];
-        self.floatingButton.backgroundColor = [UIColor systemGreenColor];
-    } else {
-        self.toggleButton.backgroundColor = [UIColor systemGreenColor];
-        [self.toggleButton setTitle:@"▶️ تشغيل الأوتو" forState:UIControlStateNormal];
-        self.floatingButton.backgroundColor = [UIColor systemBlueColor];
+- (void)updateSpeed {
+    self.clickInterval = self.speedSlider.value;
+}
+
+- (void)addTargetNode {
+    int index = (int)self.targetsCollection.count + 1;
+    MustacheTargetNode *newTarget = [[MustacheTargetNode alloc] initWithFrame:CGRectMake(100, 100, 50, 50) index:index];
+    [self addSubview:newTarget];
+    [self.targetsCollection addObject:newTarget];
+}
+
+- (void)startAutoTap {
+    if (self.highSpeedTimer) return;
+    self.highSpeedTimer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
+    dispatch_source_set_timer(self.highSpeedTimer, DISPATCH_TIME_NOW, self.clickInterval * NSEC_PER_SEC, 0.1 * NSEC_PER_SEC);
+    dispatch_source_set_event_handler(self.highSpeedTimer, ^{
+        for (MustacheTargetNode *node in self.targetsCollection) {
+            CFTypeRef event = IOHIDEventCreateDigitizerFingerEvent(
+                kCFAllocatorDefault, mach_absolute_time(), 0, 1, 2,
+                node.screenAbsolutePoint.x, node.screenAbsolutePoint.y, 0, 1.0, 0.0, true, true, 0
+            );
+            ISendHIDEvent(event);
+            CFRelease(event);
+        }
+    });
+    dispatch_resume(self.highSpeedTimer);
+}
+
+- (void)stopAutoTap {
+    if (self.highSpeedTimer) {
+        dispatch_source_cancel(self.highSpeedTimer);
+        self.highSpeedTimer = nil;
     }
 }
-
-- (void)addTargetClick {
-    NSInteger targetNumber = self.targetCircles.count + 1;
-    UIView *targetView = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 35, 35)];
-    targetView.center = CGPointMake(self.center.x, self.center.y + (targetNumber * 10));
-    targetView.backgroundColor = [[UIColor systemRedColor] colorWithAlphaComponent:0.8];
-    targetView.layer.cornerRadius = 17.5;
-    
-    UILabel *numLabel = [[UILabel alloc] initWithFrame:targetView.bounds];
-    numLabel.text = [NSString stringWithFormat:@"%ld", (long)targetNumber];
-    numLabel.textColor = [UIColor whiteColor];
-    numLabel.textAlignment = NSTextAlignmentCenter;
-    numLabel.font = [UIFont boldSystemFontOfSize:14];
-    [targetView addSubview:numLabel];
-    
-    UIPanGestureRecognizer *targetPan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handlePan:)];
-    [targetView addGestureRecognizer:targetPan];
-    
-    [self addSubview:targetView];
-    [self.targetCircles addObject:targetView];
-}
-
-- (void)clearTargetsClick {
-    for (UIView *view in self.targetCircles) [view removeFromSuperview];
-    [self.targetCircles removeAllObjects];
-    if (self.isRunning) [self toggleAutoClick];
-}
 @end
-
-static void __attribute__((constructor)) initialize(void) {
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        static AutoTouchWindow *autoWindow = nil;
-        autoWindow = [[AutoTouchWindow alloc] init];
-    });
-}
