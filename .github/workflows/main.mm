@@ -1,10 +1,11 @@
 #import <UIKit/UIKit.h>
 #import <CoreGraphics/CoreGraphics.h>
 #import <QuartzCore/QuartzCore.h>
+#import <mach/mach_time.h>
 
-// ==========================================
-// 1. تصميم الأهداف المتعددة المرقمة القابلة للحركة
-// ==========================================
+// ==========================================================
+// 1. تصميم الأهداف المتعددة المرقمة الفخمة باللون الذهبي والأسود
+// ==========================================================
 @interface MustacheTargetNode : UIView
 @property (nonatomic, assign) CGPoint screenAbsolutePoint; 
 @property (nonatomic, strong) UILabel *numberLabel;
@@ -14,19 +15,22 @@
 - (instancetype)initWithFrame:(CGRect)frame index:(NSInteger)index {
     self = [super initWithFrame:frame];
     if (self) {
-        self.backgroundColor = [[UIColor blackColor] colorWithAlphaComponent:0.80];
+        // تصميم VIP: خلفية ذهبية ملكية شفافة مع إطار أسود عريض وواضح فوق طاولة لودو
+        self.backgroundColor = [[UIColor colorWithRed:0.85 green:0.65 blue:0.13 alpha:1.0] colorWithAlphaComponent:0.75];
         self.layer.cornerRadius = frame.size.width / 2;
-        self.layer.borderColor = [UIColor whiteColor].CGColor;
-        self.layer.borderWidth = 2.0;
+        self.layer.borderColor = [UIColor blackColor].CGColor;
+        self.layer.borderWidth = 2.5;
         self.userInteractionEnabled = YES;
         
+        // الرقم في المنتصف باللون الأسود العريض (تعدد الأهداف المرقّمة)
         self.numberLabel = [[UILabel alloc] initWithFrame:self.bounds];
         self.numberLabel.text = [NSString stringWithFormat:@"%ld", (long)index];
-        self.numberLabel.textColor = [UIColor whiteColor];
+        self.numberLabel.textColor = [UIColor blackColor];
         self.numberLabel.textAlignment = NSTextAlignmentCenter;
-        self.numberLabel.font = [UIFont boldSystemFontOfSize:14];
+        self.numberLabel.font = [UIFont boldSystemFontOfSize:15];
         [self addSubview:self.numberLabel];
         
+        // إيماءة سحب وتحريك الهدف بحرية في أي مكان على الشاشة
         UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handleNodePan:)];
         [self addGestureRecognizer:pan];
         
@@ -40,20 +44,21 @@
     self.center = CGPointMake(self.center.x + translation.x, self.center.y + translation.y);
     [sender setTranslation:CGPointMake(0, 0) inView:self.superview];
     
+    // تصحيح الإحداثيات فوراً وتحديثها عند السحب لضمان تشغيل الأهداف بدقة
     if (sender.state == UIGestureRecognizerStateEnded || sender.state == UIGestureRecognizerStateChanged) {
         [self updateAbsolutePosition];
     }
 }
 
 - (void)updateAbsolutePosition {
-    // تسجيل موقع الهدف مباشرة بالنسبة للنافذة الأصلية للعبة
+    // حفظ الإحداثي الفعلي والمباشر للهدف بالنسبة للشاشة كاملة
     self.screenAbsolutePoint = self.center;
 }
 @end
 
-// ==========================================
-// 2. إدارة لوحة التحكم وحقنها في نافذة اللعبة مباشرة (تمنع الفريز 100%)
-// ==========================================
+// ==========================================================
+// 2. إدارة لوحة تحكم (موستاش اوتو) المحقونة مباشرة داخل اللعبة لمنع الفريز
+// ==========================================================
 @interface MustacheLudoController : NSObject
 @property (nonatomic, strong) UIButton *floatingButton;
 @property (nonatomic, strong) UIView *menuContainer;
@@ -90,7 +95,7 @@
 }
 
 - (void)initMenuInsideGame {
-    // جلب النافذة الحقيقية للعبة لودو لحقن العناصر بداخلها مباشرة
+    // جلب النافذة الأصلية للعبة لودو لحقن العناصر بداخلها بدلاً من إنشاء نافذة جديدة تسبب الفريز
     UIWindow *gameWindow = [UIApplication sharedApplication].keyWindow;
     if (!gameWindow && @available(iOS 13.0, *)) {
         for (UIWindowScene *scene in [UIApplication sharedApplication].connectedScenes) {
@@ -102,125 +107,92 @@
     }
     if (!gameWindow) return;
 
-    // إنشاء الزر العائم مباشرة داخل اللعبة
+    // 🌟 تصميم الزر العائم: دائري أسود ملكي فخم يحيطه إطار ذهبي توهج VIP
     self.floatingButton = [UIButton buttonWithType:UIButtonTypeCustom];
-    self.floatingButton.frame = CGRectMake(40, 200, 75, 45);
+    self.floatingButton.frame = CGRectMake(50, 180, 60, 60);
     self.floatingButton.backgroundColor = [UIColor blackColor];
-    [self.floatingButton setTitle:@"موستاش" forState:UIControlStateNormal];
-    [self.floatingButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
-    self.floatingButton.titleLabel.font = [UIFont boldSystemFontOfSize:13];
-    self.floatingButton.layer.cornerRadius = 12;
-    self.floatingButton.layer.borderWidth = 2.0;
-    self.floatingButton.layer.borderColor = [UIColor whiteColor].CGColor;
+    [self.floatingButton setTitle:@"M" forState:UIControlStateNormal];
+    [self.floatingButton setTitleColor:[UIColor colorWithRed:0.93 green:0.75 blue:0.25 alpha:1.0] forState:UIControlStateNormal];
+    self.floatingButton.titleLabel.font = [UIFont boldSystemFontOfSize:22];
+    self.floatingButton.layer.cornerRadius = 30; 
+    self.floatingButton.layer.borderWidth = 2.5;
+    self.floatingButton.layer.borderColor = [UIColor colorWithRed:0.93 green:0.75 blue:0.25 alpha:1.0].CGColor; 
     
+    self.floatingButton.layer.shadowColor = [UIColor colorWithRed:0.93 green:0.75 blue:0.25 alpha:1.0].CGColor;
+    self.floatingButton.layer.shadowOpacity = 0.8;
+    self.floatingButton.layer.shadowRadius = 8;
+    self.floatingButton.layer.shadowOffset = CGSizeZero;
+
     UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handleButtonPan:)];
     [self.floatingButton addGestureRecognizer:pan];
     [self.floatingButton addTarget:self action:@selector(toggleMenu) forControlEvents:UIControlEventTouchUpInside];
     [gameWindow addSubview:self.floatingButton];
     
-    // إنشاء القائمة مباشرة داخل اللعبة
-    self.menuContainer = [[UIView alloc] initWithFrame:CGRectMake(40, 255, 250, 260)];
-    self.menuContainer.backgroundColor = [[UIColor blackColor] colorWithAlphaComponent:0.96];
-    self.menuContainer.layer.cornerRadius = 15;
-    self.menuContainer.layer.borderColor = [UIColor whiteColor].CGColor;
-    self.menuContainer.layer.borderWidth = 2.0;
+    // 🌟 تصميم القائمة: أسود داكن VIP مع حواف ذهبية فخمة واسم المود المطلوب
+    self.menuContainer = [[UIView alloc] initWithFrame:CGRectMake(50, 250, 260, 280)];
+    self.menuContainer.backgroundColor = [[UIColor colorWithRed:0.07 green:0.07 blue:0.07 alpha:1.0] colorWithAlphaComponent:0.98];
+    self.menuContainer.layer.cornerRadius = 18;
+    self.menuContainer.layer.borderColor = [UIColor colorWithRed:0.93 green:0.75 blue:0.25 alpha:1.0].CGColor; 
+    self.menuContainer.layer.borderWidth = 2.5;
     self.menuContainer.hidden = YES;
     
-    UILabel *title = [[UILabel alloc] initWithFrame:CGRectMake(10, 10, 230, 25)];
-    title.text = @"MUSTACHE AUTO MENU";
-    title.textColor = [UIColor whiteColor];
+    // اسم القائمة "MUSTACHE AUTO" باللون الذهبي الملكي
+    UILabel *title = [[UILabel alloc] initWithFrame:CGRectMake(10, 15, 240, 25)];
+    title.text = @"👑 MUSTACHE AUTO MENU 👑";
+    title.textColor = [UIColor colorWithRed:0.93 green:0.75 blue:0.25 alpha:1.0];
     title.textAlignment = NSTextAlignmentCenter;
-    title.font = [UIFont boldSystemFontOfSize:13];
+    title.font = [UIFont boldSystemFontOfSize:14];
     [self.menuContainer addSubview:title];
     
+    // زر "➕ اضافه هدف"
     UIButton *addBtn = [UIButton buttonWithType:UIButtonTypeCustom];
-    addBtn.frame = CGRectMake(25, 45, 200, 34);
-    addBtn.backgroundColor = [UIColor whiteColor];
-    [addBtn setTitle:@"➕ اضافه هدف" forState:UIControlStateNormal];
-    [addBtn setTitleColor:[UIColor blackColor] forState:UIControlStateNormal];
+    addBtn.frame = CGRectMake(25, 55, 200, 36);
+    addBtn.backgroundColor = [UIColor colorWithRed:0.12 green:0.12 blue:0.12 alpha:1.0];
+    [addBtn setTitle:@"➕ اضافه هدف جديد" forState:UIControlStateNormal];
+    [addBtn setTitleColor:[UIColor colorWithRed:0.93 green:0.75 blue:0.25 alpha:1.0] forState:UIControlStateNormal];
     addBtn.titleLabel.font = [UIFont boldSystemFontOfSize:12];
-    addBtn.layer.cornerRadius = 8;
+    addBtn.layer.cornerRadius = 10;
+    addBtn.layer.borderWidth = 1.0;
+    addBtn.layer.borderColor = [UIColor colorWithRed:0.93 green:0.75 blue:0.25 alpha:1.0].CGColor;
     [addBtn addTarget:self action:@selector(addTargetNode) forControlEvents:UIControlEventTouchUpInside];
     [self.menuContainer addSubview:addBtn];
     
+    // زر "❌ حذف آخر هدف" للتعديل والتحكم بالاهداف المرقمة
     UIButton *removeBtn = [UIButton buttonWithType:UIButtonTypeCustom];
-    removeBtn.frame = CGRectMake(25, 85, 200, 34);
-    removeBtn.backgroundColor = [UIColor redColor];
+    removeBtn.frame = CGRectMake(25, 100, 200, 36);
+    removeBtn.backgroundColor = [UIColor colorWithRed:0.65 green:0.10 blue:0.15 alpha:1.0];
     [removeBtn setTitle:@"❌ حذف آخر هدف" forState:UIControlStateNormal];
     [removeBtn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
     removeBtn.titleLabel.font = [UIFont boldSystemFontOfSize:12];
-    removeBtn.layer.cornerRadius = 8;
+    removeBtn.layer.cornerRadius = 10;
     [removeBtn addTarget:self action:@selector(removeLastNode) forControlEvents:UIControlEventTouchUpInside];
     [self.menuContainer addSubview:removeBtn];
     
-    self.speedSlider = [[UISlider alloc] initWithFrame:CGRectMake(25, 135, 200, 30)];
-    self.speedSlider.minimumValue = 0.02;
+    // شريط السرعة (Slider) بلون ذهبي فخم
+    self.speedSlider = [[UISlider alloc] initWithFrame:CGRectMake(25, 150, 200, 30)];
+    self.speedSlider.minimumValue = 0.01; // سرعات خارقة جداً لضرب النرد
     self.speedSlider.maximumValue = 1.5;
     self.speedSlider.value = 0.10;
-    self.speedSlider.tintColor = [UIColor whiteColor];
+    self.speedSlider.minimumTrackTintColor = [UIColor colorWithRed:0.93 green:0.75 blue:0.25 alpha:1.0]; 
+    self.speedSlider.maximumTrackTintColor = [UIColor darkGrayColor];
     [self.speedSlider addTarget:self action:@selector(sliderChanged:) forControlEvents:UIControlEventValueChanged];
     [self.menuContainer addSubview:self.speedSlider];
     
-    self.speedLabel = [[UILabel alloc] initWithFrame:CGRectMake(10, 165, 230, 20)];
+    self.speedLabel = [[UILabel alloc] initWithFrame:CGRectMake(10, 182, 230, 20)];
     self.speedLabel.text = @"معدل النقر: 0.10 ثانية";
     self.speedLabel.textColor = [UIColor lightGrayColor];
     self.speedLabel.textAlignment = NSTextAlignmentCenter;
     self.speedLabel.font = [UIFont systemFontOfSize:11];
     [self.menuContainer addSubview:self.speedLabel];
     
+    // زر تشغيل وإيقاف الماكرو (ذهبي بالكامل ونص أسود عريض)
     self.toggleButton = [UIButton buttonWithType:UIButtonTypeCustom];
-    self.toggleButton.frame = CGRectMake(25, 205, 200, 42);
-    self.toggleButton.backgroundColor = [UIColor whiteColor];
+    self.toggleButton.frame = CGRectMake(25, 215, 200, 42);
+    self.toggleButton.backgroundColor = [UIColor colorWithRed:0.93 green:0.75 blue:0.25 alpha:1.0];
     [self.toggleButton setTitle:@"▶️ تشغيل التلقائي" forState:UIControlStateNormal];
     [self.toggleButton setTitleColor:[UIColor blackColor] forState:UIControlStateNormal];
     self.toggleButton.titleLabel.font = [UIFont boldSystemFontOfSize:14];
-    self.toggleButton.layer.cornerRadius = 10;
+    self.toggleButton.layer.cornerRadius = 12;
     [self.toggleButton addTarget:self action:@selector(toggleMacroState) forControlEvents:UIControlEventTouchUpInside];
     [self.menuContainer addSubview:self.toggleButton];
     
-    [gameWindow addSubview:self.menuContainer];
-}
-
-- (void)handleButtonPan:(UIPanGestureRecognizer *)sender {
-    UIWindow *gameWindow = [UIApplication sharedApplication].keyWindow;
-    CGPoint translation = [sender translationInView:gameWindow];
-    sender.view.center = CGPointMake(sender.view.center.x + translation.x, sender.view.center.y + translation.y);
-    [sender setTranslation:CGPointMake(0, 0) inView:gameWindow];
-}
-
-- (void)toggleMenu {
-    self.menuContainer.hidden = !self.menuContainer.hidden;
-}
-
-- (void)addTargetNode {
-    UIWindow *gameWindow = [UIApplication sharedApplication].keyWindow;
-    NSInteger nextIndex = self.targetsArray.count + 1;
-    MustacheTargetNode *node = [[MustacheTargetNode alloc] initWithFrame:CGRectMake(150, 350, 36, 36) index:nextIndex];
-    [gameWindow addSubview:node];
-    [self.targetsArray addObject:node];
-}
-
-- (void)removeLastNode {
-    if (self.targetsArray.count > 0) {
-        MustacheTargetNode *lastNode = self.targetsArray.lastObject;
-        [lastNode removeFromSuperview];
-        [self.targetsArray removeLastObject];
-    }
-}
-
-- (void)sliderChanged:(UISlider *)sender {
-    self.interval = sender.value;
-    self.speedLabel.text = [NSString stringWithFormat:@"معدل النقر: %.3f ثانية", sender.value];
-    if (self.isRunning) {
-        [self stopTimer];
-        [self startTimer];
-    }
-}
-
-- (void)toggleMacroState {
-    if (self.isRunning) {
-        [self stopTimer];
-        [self.toggleButton setTitle:@"▶️ تشغيل التلقائي" forState:UIControlStateNormal];
-        self.toggleButton.backgroundColor = [UIColor whiteColor];
-        [self.toggleButton setTitleColor:[UIColor blackColor] forState:UIControlStateNormal];
-    } else {
