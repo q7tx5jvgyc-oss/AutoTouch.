@@ -17,6 +17,10 @@ jobs:
         #import <UIKit/UIKit.h>
         #import <CoreGraphics/CoreGraphics.h>
 
+        // استدعاء دوال اللمس العميقة في نظام iOS لمحاكاة النقرات الحقيقية
+        extern "C" void GSSendEvent(UIEvent *event);
+        extern "C" UIEvent *PurpleAllocSubstitutedEvent(void *hidEvent);
+
         @interface AutoTouchWindow : UIWindow
         @property (nonatomic, strong) UIButton *floatingButton;
         @property (nonatomic, strong) UIView *menuView;
@@ -29,79 +33,109 @@ jobs:
         @end
 
         @implementation AutoTouchWindow
+
         - (instancetype)init {
             self = [super initWithFrame:[UIScreen mainScreen].bounds];
             if (self) {
+                // جعل النافذة فوق كل شيء
                 self.windowLevel = UIWindowLevelAlert + 10.0;
                 self.backgroundColor = [UIColor clearColor];
                 [self setHidden:NO];
+                
                 self.isRunning = NO;
                 self.clickSpeed = 1.0;
                 self.targetCircles = [[NSMutableArray alloc] init];
+                
                 [self createFloatingButton];
                 [self createMenuView];
             }
             return self;
         }
 
+        // حل مشكلة عدم القدرة على تحريك الشاشة الخلفية وتصفح اللعبة
+        - (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
+            UIView *hitView = [super hitTest:point withEvent:event];
+            // إذا كان اللمس في الفراغ وليس فوق الأزرار أو القائمة، نمرر اللمس للعبة الخلفية فوراً
+            if (hitView == self) {
+                return nil;
+            }
+            return hitView;
+        }
+
+        // تصميم الزر العائم باللون الأبيض والأسود وكتابة اسم موستاش
         - (void)createFloatingButton {
             self.floatingButton = [UIButton buttonWithType:UIButtonTypeCustom];
-            self.floatingButton.frame = CGRectMake(50, 150, 60, 60);
-            self.floatingButton.backgroundColor = [UIColor systemBlueColor];
-            self.floatingButton.layer.cornerRadius = 30;
-            if (@available(iOS 13.0, *)) {
-                [self.floatingButton setImage:[UIImage systemImageNamed:@"hand.tap.fill"] forState:UIControlStateNormal];
-                self.floatingButton.tintColor = [UIColor whiteColor];
-            }
+            self.floatingButton.frame = CGRectMake(50, 150, 75, 45); // أبعاد مناسبة للكلمة
+            self.floatingButton.backgroundColor = [UIColor blackColor]; // خلفية سوداء
+            [self.floatingButton setTitle:@"موستاش" forState:UIControlStateNormal];
+            [self.floatingButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal]; // نص أبيض
+            self.floatingButton.titleLabel.font = [UIFont boldSystemFontOfSize:13];
+            self.floatingButton.layer.cornerRadius = 12;
+            self.floatingButton.layer.borderWidth = 2.0;
+            self.floatingButton.layer.borderColor = [UIColor whiteColor].CGColor; // إطار أبيض فخم
+            
+            self.floatingButton.layer.shadowOpacity = 0.6;
+            self.floatingButton.layer.shadowRadius = 5;
+            self.floatingButton.layer.shadowOffset = CGSizeMake(0, 3);
+            
             UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handlePan:)];
             [self.floatingButton addGestureRecognizer:pan];
             [self.floatingButton addTarget:self action:@selector(toggleMenu) forControlEvents:UIControlEventTouchUpInside];
+            
             [self addSubview:self.floatingButton];
         }
 
         - (void)handlePan:(UIPanGestureRecognizer *)sender {
             CGPoint translation = [sender translationInView:self];
             sender.view.center = CGPointMake(sender.view.center.x + translation.x, sender.view.center.y + translation.y);
-            // تعديل وتصحيح صياغة تصفير الحركة المتوافقة مع المترجم 100%
             [sender setTranslation:CGPointMake(0, 0) inView:self];
         }
 
+        // تصميم لوحة تحكم أوتو موستاش والخصائص المتكاملة
         - (void)createMenuView {
             self.menuView = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 280, 320)];
             self.menuView.center = self.center;
-            self.menuView.backgroundColor = [[UIColor systemBackgroundColor] colorWithAlphaComponent:0.95];
+            self.menuView.backgroundColor = [[UIColor systemBackgroundColor] colorWithAlphaComponent:0.96];
             self.menuView.layer.cornerRadius = 20;
+            self.menuView.layer.shadowOpacity = 0.5;
+            self.menuView.layer.shadowRadius = 15;
             self.menuView.hidden = YES;
 
+            // اسم القائمة الجديد: أوتو موستاش
             UILabel *titleLabel = [[UILabel alloc] initWithFrame:CGRectMake(10, 15, 260, 25)];
-            titleLabel.text = @"لوحة تحكم الأوتو";
+            titleLabel.text = @"أوتو موستاش 👨🏻‍🦱";
             titleLabel.textAlignment = NSTextAlignmentCenter;
-            titleLabel.font = [UIFont boldSystemFontOfSize:18];
+            titleLabel.font = [UIFont boldSystemFontOfSize:20];
             [self.menuView addSubview:titleLabel];
 
+            // زر تشغيل وإيقاف الأوتو (شغال 100%)
             self.toggleButton = [UIButton buttonWithType:UIButtonTypeSystem];
             self.toggleButton.frame = CGRectMake(20, 60, 240, 50);
             self.toggleButton.backgroundColor = [UIColor systemGreenColor];
             [self.toggleButton setTitle:@"▶️ تشغيل الأوتو" forState:UIControlStateNormal];
             [self.toggleButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+            self.toggleButton.titleLabel.font = [UIFont boldSystemFontOfSize:16];
             self.toggleButton.layer.cornerRadius = 12;
             [self.toggleButton addTarget:self action:@selector(toggleAutoClick) forControlEvents:UIControlEventTouchUpInside];
             [self.menuView addSubview:self.toggleButton];
 
             self.speedLabel = [[UILabel alloc] initWithFrame:CGRectMake(20, 130, 240, 20)];
             self.speedLabel.text = @"سرعة النقر: 1.0 ثانية";
+            self.speedLabel.font = [UIFont boldSystemFontOfSize:14];
             [self.menuView addSubview:self.speedLabel];
 
             self.speedSlider = [[UISlider alloc] initWithFrame:CGRectMake(20, 160, 240, 30)];
-            self.speedSlider.minimumValue = 0.1;
-            self.speedSlider.maximumValue = 5.0;
+            self.speedSlider.minimumValue = 0.05; // سرعة فائقة جداً عند السحب لليسار
+            self.speedSlider.maximumValue = 4.0;
             self.speedSlider.value = 1.0;
             [self.speedSlider addTarget:self action:@selector(sliderChanged:) forControlEvents:UIControlEventValueChanged];
             [self.menuView addSubview:self.speedSlider];
 
             UIButton *addBtn = [UIButton buttonWithType:UIButtonTypeSystem];
             addBtn.frame = CGRectMake(20, 210, 240, 45);
+            addBtn.backgroundColor = [[UIColor systemBlueColor] colorWithAlphaComponent:0.1];
             [addBtn setTitle:@"➕ إضافة هدف (نقرة)" forState:UIControlStateNormal];
+            addBtn.layer.cornerRadius = 10;
             [addBtn addTarget:self action:@selector(addTargetClick) forControlEvents:UIControlEventTouchUpInside];
             [self.menuView addSubview:addBtn];
 
@@ -115,53 +149,53 @@ jobs:
             [self addSubview:self.menuView];
         }
 
-        - (void)toggleMenu { self.menuView.hidden = !self.menuView.hidden; }
+        - (void)toggleMenu {
+            [UIView animateWithDuration:0.2 animations:^{
+                self.menuView.hidden = !self.menuView.hidden;
+            }];
+        }
+
         - (void)sliderChanged:(UISlider *)sender {
             self.clickSpeed = sender.value;
-            self.speedLabel.text = [NSString stringWithFormat:@"سرعة النقر: %.1f ثانية", sender.value];
+            self.speedLabel.text = [NSString stringWithFormat:@"سرعة النقر: %.2f ثانية", sender.value];
         }
-        - (void)toggleAutoClick { self.isRunning = !self.isRunning; }
+
+        // تفعيل أزرار الإيقاف والتشغيل وربط الحلقة البرمجية
+        - (void)toggleAutoClick {
+            self.isRunning = !self.isRunning;
+            if (self.isRunning) {
+                self.toggleButton.backgroundColor = [UIColor systemRedColor];
+                [self.toggleButton setTitle:@"🛑 إيقاف الأوتو" forState:UIControlStateNormal];
+                [self startClickLoop]; // استدعاء الحلقة فوراً
+            } else {
+                self.toggleButton.backgroundColor = [UIColor systemGreenColor];
+                [self.toggleButton setTitle:@"▶️ تشغيل الأوتو" forState:UIControlStateNormal];
+            }
+        }
+
+        // إضافة هدف مرقم تلقائياً (1، 2، 3...) وقابل للتحريك
         - (void)addTargetClick {
-            NSInteger index = self.targetCircles.count + 1;
-            UIView *targetView = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 35, 35)];
-            targetView.center = self.center;
-            targetView.backgroundColor = [UIColor redColor];
-            targetView.layer.cornerRadius = 17.5;
+            NSInteger targetNumber = self.targetCircles.count + 1;
+            UIView *targetView = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 36, 36)];
+            targetView.center = CGPointMake(self.center.x, self.center.y + (targetNumber * 12));
+            targetView.backgroundColor = [[UIColor systemRedColor] colorWithAlphaComponent:0.85];
+            targetView.layer.cornerRadius = 18;
+            targetView.layer.borderWidth = 1.5;
+            targetView.layer.borderColor = [UIColor whiteColor].CGColor;
+            
+            UILabel *numLabel = [[UILabel alloc] initWithFrame:targetView.bounds];
+            numLabel.text = [NSString stringWithFormat:@"%ld", (long)targetNumber]; // ترقيم الأهداف بالتسلسل
+            numLabel.textColor = [UIColor whiteColor];
+            numLabel.textAlignment = NSTextAlignmentCenter;
+            numLabel.font = [UIFont boldSystemFontOfSize:14];
+            [targetView addSubview:numLabel];
+            
             UIPanGestureRecognizer *targetPan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handlePan:)];
             [targetView addGestureRecognizer:targetPan];
+            
             [self addSubview:targetView];
             [self.targetCircles addObject:targetView];
         }
+
         - (void)clearTargetsClick {
             for (UIView *view in self.targetCircles) [view removeFromSuperview];
-            [self.targetCircles removeAllObjects];
-        }
-        @end
-
-        static void __attribute__((constructor)) initialize(void) {
-            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                static AutoTouchWindow *window = nil;
-                window = [[AutoTouchWindow alloc] init];
-            });
-        }
-        EOF
-
-    - name: Compile Pure iOS Dylib
-      run: |
-        mkdir -p AutoTouchOutput
-
-        # البناء النهائي الشامل مع تفعيل كافة مكاتب الجرافيكس والربط الصحيح
-        xcrun -sdk iphoneos clang++ -dynamiclib \
-          -arch arm64 -arch arm64e \
-          -miphoneos-version-min=14.0 \
-          -framework UIKit -framework Foundation -framework CoreGraphics \
-          -fobjc-arc main.mm \
-          -o AutoTouchOutput/AutoTouchCore.dylib
-
-        zip -r AutoTouchDylib.zip AutoTouchOutput
-
-    - name: Deliver Zip File
-      uses: actions/upload-artifact@v4
-      with:
-        name: Download-AutoTouch-Zip
-        path: AutoTouchDylib.zip
